@@ -23,6 +23,7 @@ from utils import (
     ensure_dirs,
     error_exit,
     fetch_kline_data,
+    parse_yyyymmdd,
     parse_stock_code,
 )
 
@@ -57,6 +58,18 @@ def main():
         start_date = args.start_date
     else:
         start_date = (today - timedelta(days=90)).strftime("%Y%m%d")
+
+    # 日期格式与区间校验
+    try:
+        start_dt = parse_yyyymmdd(start_date, "开始日期")
+        end_dt = parse_yyyymmdd(end_date, "结束日期")
+    except ValueError as e:
+        error_exit(str(e))
+
+    if start_dt > end_dt:
+        error_exit(
+            f"日期区间错误：开始日期 {start_date} 晚于结束日期 {end_date}。"
+        )
 
     print(f"正在获取 {market}{code} 的日K数据 ({start_date} ~ {end_date}) ...")
 

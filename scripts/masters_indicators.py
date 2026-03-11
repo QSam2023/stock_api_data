@@ -19,12 +19,21 @@ import sys
 import os
 import json
 import glob
-import re
 import subprocess
 from datetime import datetime, timedelta
+from typing import Optional
 
 import pandas as pd
 import numpy as np
+
+
+def _format_ratio(numerator: float, denominator: float) -> str:
+    """安全格式化比值，避免分母为 0 时崩溃。"""
+    if denominator == 0:
+        if numerator == 0:
+            return "1.00"
+        return "∞"
+    return f"{numerator / denominator:.2f}"
 
 
 def normalize_code(code: str) -> str:
@@ -33,6 +42,25 @@ def normalize_code(code: str) -> str:
     if code.startswith("sh") or code.startswith("sz"):
         return code[2:]
     return code
+
+
+def _extract_saved_csv_path(stdout_text: str) -> Optional[str]:
+    """从 fetch_kline 输出中提取 CSV 路径。"""
+    for raw_line in stdout_text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("数据已保存:"):
+            path = line.split(":", 1)[1].strip()
+            if path:
+                return path
+    return None
+
+
+def _safe_mtime(path: str) -> float:
+    """获取文件修改时间；文件不存在时返回 0，便于回退排序。"""
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
 
 
 def find_or_fetch_csv(code: str, days: int) -> str:
@@ -64,17 +92,17 @@ def find_or_fetch_csv(code: str, days: int) -> str:
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
 
-    for line in result.stdout.splitlines():
-        m = re.match(r"^数据已保存:\s*(.+)$", line.strip())
-        if m and os.path.exists(m.group(1)):
-            return m.group(1)
+    parsed_path = _extract_saved_csv_path(result.stdout)
+    if parsed_path and os.path.exists(parsed_path):
+        return parsed_path
 
-    # 回退：重新扫描匹配文件并返回最新文件
-    files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+    # 兼容输出格式变化：回退到抓取后最新匹配文件
+    files = sorted(glob.glob(pattern), key=_safe_mtime, reverse=True)
     if files:
         return files[0]
 
-    print("错误: 获取数据成功但未找到输出 CSV 文件路径。", file=sys.stderr)
+    print("错误: 拉取K线成功，但未能定位生成的 CSV 文件路径。", file=sys.stderr)
+    print(result.stdout, file=sys.stderr)
     sys.exit(1)
 
 
@@ -156,10 +184,16 @@ def step2_wyckoff_volume(df: pd.DataFrame) -> dict:
 
     if avg_vol_up > avg_vol_down * 1.2:
         result["status"] = "PASS"
-        result["details"].append(f"🟢 量价关系健康：上涨日成交量明显大于下跌日（比值 {avg_vol_up/avg_vol_down:.2f}x）")
+        ratio = _format_ratio(avg_vol_up, avg_vol_down)
+        result["details"].append(
+            f"🟢 量价关系健康：上涨日成交量明显大于下跌日（比值 {ratio}x）"
+        )
     elif avg_vol_down > avg_vol_up * 1.3:
         result["status"] = "FAIL"
-        result["details"].append(f"🔴 异常信号：下跌日放量（比值 {avg_vol_down/avg_vol_up:.2f}x），可能存在主力出货")
+        ratio = _format_ratio(avg_vol_down, avg_vol_up)
+        result["details"].append(
+            f"🔴 异常信号：下跌日放量（比值 {ratio}x），可能存在主力出货"
+        )
     else:
         result["status"] = "NEUTRAL"
         result["details"].append(f"🟡 量价关系中性：上涨/下跌日成交量差异不显著")
@@ -194,10 +228,12 @@ def step3_darvas_breakout(df: pd.DataFrame) -> dict:
     last_vol = float(df["volume"].iloc[-1])
     avg_vol_50 = float(df["volume"].tail(50).mean()) if len(df) >= 50 else float(df["volume"].mean())
 
-    vol_ratio = last_vol / avg_vol_50
+    vol_ratio = last_vol / avg_vol_50 if avg_vol_50 > 0 else 0.0
 
     result["details"].append(f"近30日箱体：高 {box_high:.2f}  低 {box_low:.2f}  振幅 {box_range_pct:.1f}%")
     result["details"].append(f"当前收盘：{last_close:.2f}  |  今日量比（vs50日均量）：{vol_ratio:.2f}x")
+    if avg_vol_50 <= 0:
+        result["details"].append("⚠️ 成交量基准为 0，量比按 0.00x 处理")
 
     # 250日新高检测（利弗莫尔）
     high_250 = float(df["high"].tail(250).max()) if len(df) >= 250 else float(df["high"].max())

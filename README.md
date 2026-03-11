@@ -36,18 +36,20 @@ python scripts/record_web_snapshot.py TC-ANL-003 Eastmoney \
 ├── SKILL.md               # OpenClaw Skill 定义（YAML frontmatter + SOP）
 ├── requirements.txt       # Python 依赖
 ├── scripts/
-│   ├── utils.py           # 共享工具（代码解析、数据获取）
-│   ├── fetch_kline.py     # 获取 K 线数据 → CSV
-│   ├── plot_chart.py      # 生成 K 线图 → PNG
-│   ├── analyze.py         # 输出技术指标分析文本
-│   ├── masters_indicators.py # 大师策略三步过滤分析
+│   ├── utils.py               # 共享工具（代码解析、数据获取）
+│   ├── fetch_kline.py         # 获取 K 线数据 → CSV
+│   ├── plot_chart.py          # 生成 K 线图 → PNG
+│   ├── analyze.py             # 输出技术指标分析文本
+│   ├── masters_indicators.py  # 大师策略三步过滤分析
 │   └── record_web_snapshot.py # 记录网页对比基线快照
+├── tests/
+│   └── test_masters_indicators.py # masters_indicators 单元测试
 ├── docs/
-│   ├── Stock_API_PRD.md   # 产品需求文档
-│   ├── reference_strategy.md # 投机大师方法论参考
+│   ├── Stock_API_PRD.md           # 产品需求文档
+│   ├── reference_strategy.md      # 投机大师方法论参考
 │   ├── skill_interface_testset.md # 接口 vs 网页搜索对比测试设计
 │   ├── skill_interface_testcases.csv # 可执行测试用例清单
-│   └── test_and_fix_todolist.md # 缺陷测试与修复待办
+│   └── test_and_fix_todolist.md   # 缺陷测试与修复待办
 ├── references/
 │   ├── akshare_api.md     # AKShare 接口参考
 │   └── stock_codes.md     # 股票代码规则
@@ -123,10 +125,18 @@ python scripts/record_web_snapshot.py <CASE_ID> <SOURCE> <URL> \
 - AKShare 有请求频率限制，避免短时间大量调用
 - 分析结果仅供参考，不构成投资建议
 
+## 测试
+
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
+
 ## 版本历史
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-03-11 | v1.3.1 | 修复 `masters_indicators.py` 首次拉取 CSV 路径解析错误（不再将 stdout 当文件路径），并补充对应单元测试 |
+| 2026-03-11 | v1.3.0 | 完成 P1 修复：`fetch_kline.py` 日期校验、`analyze.py` 资金流列白名单、AKShare 超时重试与错误分类、`masters_indicators.py` 边界单元测试 |
 | 2026-03-11 | v1.2.1 | 修复 P0 问题：`analyze.py` 近5日资金流取值、`masters_indicators.py` 首次拉取 CSV 路径解析；新增网页对比快照脚本 |
 | 2026-03-11 | v1.2.0 | 新增 Skill 接口测试集设计、接口对比用例清单与 `test and fix bugs` TodoList |
 | 2026-03-11 | v1.1.0 | 初始化 `AGENTS.md`；README 补充项目总结、`masters_indicators.py` 说明与维护信息 |

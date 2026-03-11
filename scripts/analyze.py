@@ -15,9 +15,22 @@
 import argparse
 import sys
 from datetime import datetime, timedelta
+from typing import Optional
+
+import pandas as pd
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
-from utils import error_exit, fetch_kline_data, format_market_code, parse_stock_code
+from utils import error_exit, fetch_fund_flow_data, fetch_kline_data, parse_stock_code
+
+
+MAIN_FUND_FLOW_COL_WHITELIST = [
+    "主力净流入-净额",
+    "主力净流入净额",
+    "主力净流入(净额)",
+    "主力净流入",
+]
+
+MAIN_FUND_FLOW_BLACKLIST_TOKENS = ("净占比", "占比", "比率")
 
 
 def interpret_rsi(value: float) -> str:
@@ -64,6 +77,31 @@ def interpret_boll(close: float, upper: float, mid: float, lower: float) -> str:
         return "价格位于中轨下方"
     else:
         return "价格跌破下轨，可能超卖"
+
+
+def pick_main_fund_flow_col(columns) -> Optional[str]:
+    """优先匹配主力净流入净额列，避免误命中净占比。"""
+    str_cols = [str(c).strip() for c in columns]
+    for target in MAIN_FUND_FLOW_COL_WHITELIST:
+        for col in str_cols:
+            if col == target:
+                return col
+
+    for col in str_cols:
+        if "主力净流入" not in col:
+            continue
+        if any(token in col for token in MAIN_FUND_FLOW_BLACKLIST_TOKENS):
+            continue
+        if "净额" in col:
+            return col
+
+    for col in str_cols:
+        if "主力净流入" in col and not any(
+            token in col for token in MAIN_FUND_FLOW_BLACKLIST_TOKENS
+        ):
+            return col
+
+    return None
 
 
 def main():
@@ -113,9 +151,6 @@ def main():
     latest_close = latest["close"]
     first_close = first["close"]
     change_pct = (latest_close - first_close) / first_close * 100
-
-    # 获取最新指标值
-    last_idx = df.index[-1]
 
     # MACD
     dif_val = dea_val = hist_val = None
@@ -185,37 +220,26 @@ def main():
     # 尝试获取资金流向（可能失败，非关键）
     fund_text = ""
     try:
-        import akshare as ak
-
-        fund_df = ak.stock_individual_fund_flow(stock=code, market=market)
+        fund_df = fetch_fund_flow_data(code=code, market=market)
         if fund_df is not None and not fund_df.empty:
             if "日期" in fund_df.columns:
                 fund_df = fund_df.sort_values("日期")
             recent_5 = fund_df.tail(5)
-            # 查找主力净流入列
-            main_col = None
-            for col in recent_5.columns:
-                if str(col).strip() == "主力净流入-净额":
-                    main_col = col
-                    break
-            for col in recent_5.columns:
-                if main_col:
-                    break
-                if "主力净流入" in str(col) and "净额" in str(col):
-                    main_col = col
-                    break
-            for col in recent_5.columns:
-                if main_col:
-                    break
-                if "主力净流入" in str(col):
-                    main_col = col
-                    break
+            main_col = pick_main_fund_flow_col(recent_5.columns)
             if main_col:
-                total = recent_5[main_col].astype(float).sum()
+                values = pd.to_numeric(
+                    recent_5[main_col].astype(str).str.replace(",", "", regex=False),
+                    errors="coerce",
+                ).dropna()
+                total = float(values.sum())
                 unit = "亿" if abs(total) > 1e8 else "万"
                 val = total / 1e8 if abs(total) > 1e8 else total / 1e4
                 sign_f = "+" if val >= 0 else ""
                 fund_text = f"\n资金流向（近 5 日）：主力净流入 {sign_f}{val:.1f} {unit}\n"
+            else:
+                fund_text = "\n资金流向：获取成功，但未识别到“主力净流入-净额”列\n"
+    except RuntimeError as e:
+        fund_text = f"\n资金流向：获取失败（{e}）\n"
     except Exception:
         fund_text = "\n资金流向：获取失败（接口不可用或代码不支持）\n"
 
