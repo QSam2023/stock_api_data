@@ -19,6 +19,7 @@ import sys
 import os
 import json
 import glob
+import re
 import subprocess
 from datetime import datetime, timedelta
 
@@ -58,10 +59,23 @@ def find_or_fetch_csv(code: str, days: int) -> str:
         capture_output=True, text=True
     )
     if result.returncode != 0:
+        if result.stdout:
+            print(result.stdout, file=sys.stderr)
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
 
-    return result.stdout.strip()
+    for line in result.stdout.splitlines():
+        m = re.match(r"^数据已保存:\s*(.+)$", line.strip())
+        if m and os.path.exists(m.group(1)):
+            return m.group(1)
+
+    # 回退：重新扫描匹配文件并返回最新文件
+    files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+    if files:
+        return files[0]
+
+    print("错误: 获取数据成功但未找到输出 CSV 文件路径。", file=sys.stderr)
+    sys.exit(1)
 
 
 def step1_weinstein_filter(df: pd.DataFrame) -> dict:

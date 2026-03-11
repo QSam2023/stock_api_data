@@ -16,6 +16,15 @@ python scripts/plot_chart.py data/600519_*.csv --indicators ma,macd,boll
 
 # 输出技术指标分析文本
 python scripts/analyze.py 600519 30
+
+# 执行大师策略三步过滤
+python scripts/masters_indicators.py 600519 250
+
+# 记录“接口 vs 网页”对比快照
+python scripts/record_web_snapshot.py TC-ANL-003 Eastmoney \
+  "https://quote.eastmoney.com/sh601869.html" \
+  --api-values '{"main_flow": 175185488}' \
+  --web-values '{"main_flow": 176000000}'
 ```
 
 ## 目录结构
@@ -28,7 +37,9 @@ python scripts/analyze.py 600519 30
 │   ├── utils.py           # 共享工具（代码解析、数据获取）
 │   ├── fetch_kline.py     # 获取 K 线数据 → CSV
 │   ├── plot_chart.py      # 生成 K 线图 → PNG
-│   └── analyze.py         # 输出技术指标分析文本
+│   ├── analyze.py         # 输出技术指标分析文本
+│   ├── masters_indicators.py # 大师策略三步过滤分析
+│   └── record_web_snapshot.py # 记录网页对比基线快照
 ├── references/
 │   ├── akshare_api.md     # AKShare 接口参考
 │   └── stock_codes.md     # 股票代码规则
@@ -67,6 +78,26 @@ python scripts/analyze.py <股票代码> [周期天数]
 - 默认分析最近 30 个交易日
 - 输出 MACD、RSI、BOLL、KDJ 等指标及解读
 
+### masters_indicators.py — 大师策略过滤模型
+
+```bash
+python scripts/masters_indicators.py <股票代码> [周期天数]
+```
+
+- 默认分析 250 个交易日
+- 输出三步过滤结论和 `JSON_DATA`
+
+### record_web_snapshot.py — 网页基线快照
+
+```bash
+python scripts/record_web_snapshot.py <CASE_ID> <SOURCE> <URL> \
+  --api-values '{"close": 250.01}' \
+  --web-values '{"close": 250.00}'
+```
+
+- 输出到 `output/test_reports/<YYYYMMDD>/web_baseline_snapshots.jsonl`
+- 用于保留接口与网页对比的可追溯证据
+
 ## 技术栈
 
 - **数据源**：[AKShare](https://github.com/akfamily/akshare)（免费，无需注册）
@@ -79,3 +110,10 @@ python scripts/analyze.py <股票代码> [周期天数]
 - 输出为 PNG 静态图片，适合 OpenClaw 直接展示
 - AKShare 有请求频率限制，避免短时间大量调用
 - 分析结果仅供参考，不构成投资建议
+
+## 版本历史
+
+| 日期 | 版本 | 变更 |
+|------|------|------|
+| 2026-03-11 | v1.1.1 | 修复 P0 问题：`analyze.py` 近5日资金流取值、`masters_indicators.py` 首次拉取 CSV 路径解析；新增网页对比快照脚本 |
+| 2026-03-10 | v1.0.0 | 初始版本：支持 K 线获取、图表生成、技术指标分析 |

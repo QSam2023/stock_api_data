@@ -189,15 +189,29 @@ def main():
 
         fund_df = ak.stock_individual_fund_flow(stock=code, market=market)
         if fund_df is not None and not fund_df.empty:
-            recent_5 = fund_df.head(5)
+            if "日期" in fund_df.columns:
+                fund_df = fund_df.sort_values("日期")
+            recent_5 = fund_df.tail(5)
             # 查找主力净流入列
             main_col = None
             for col in recent_5.columns:
+                if str(col).strip() == "主力净流入-净额":
+                    main_col = col
+                    break
+            for col in recent_5.columns:
+                if main_col:
+                    break
+                if "主力净流入" in str(col) and "净额" in str(col):
+                    main_col = col
+                    break
+            for col in recent_5.columns:
+                if main_col:
+                    break
                 if "主力净流入" in str(col):
                     main_col = col
                     break
             if main_col:
-                total = recent_5[main_col].sum()
+                total = recent_5[main_col].astype(float).sum()
                 unit = "亿" if abs(total) > 1e8 else "万"
                 val = total / 1e8 if abs(total) > 1e8 else total / 1e4
                 sign_f = "+" if val >= 0 else ""
