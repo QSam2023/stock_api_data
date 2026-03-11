@@ -3,7 +3,11 @@
 import os
 import re
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 # 项目根目录（scripts/ 的上一级）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -65,6 +69,87 @@ def error_exit(msg: str, exit_code: int = 1):
     sys.exit(exit_code)
 
 
+def parse_yyyymmdd(date_str: str, field_name: str = "日期") -> datetime:
+    """校验 YYYYMMDD 日期格式并返回 datetime 对象。"""
+    if not re.fullmatch(r"\d{8}", date_str):
+        raise ValueError(f"{field_name}格式错误: {date_str}，应为 YYYYMMDD。")
+
+    try:
+        return datetime.strptime(date_str, "%Y%m%d")
+    except ValueError as e:
+        raise ValueError(f"{field_name}不是有效日期: {date_str}。") from e
+
+
+def _is_retryable_ak_error(err: Exception) -> bool:
+    """判断 AKShare 错误是否属于可重试的网络/服务抖动。"""
+    msg = str(err).lower()
+    retryable_keywords = (
+        "timeout",
+        "timed out",
+        "connection",
+        "proxy",
+        "dns",
+        "temporar",
+        "429",
+        "502",
+        "503",
+        "504",
+        "max retries",
+        "reset by peer",
+        "read timed out",
+        "connecttimeout",
+        "readtimeout",
+    )
+    return any(k in msg for k in retryable_keywords)
+
+
+def run_akshare_with_retry(
+    call,
+    operation: str,
+    retries: int = 3,
+    timeout_sec: int = 15,
+    retry_delay_sec: float = 1.0,
+):
+    """执行 AKShare 请求，提供超时、有限重试与错误分类信息。"""
+    last_err: Optional[Exception] = None
+
+    for attempt in range(1, retries + 1):
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(call)
+        try:
+            result = future.result(timeout=timeout_sec)
+            executor.shutdown(wait=False, cancel_futures=False)
+            return result
+        except FutureTimeoutError as err:
+            last_err = err
+            future.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
+            if attempt < retries:
+                time.sleep(retry_delay_sec)
+            continue
+        except Exception as err:  # noqa: BLE001
+            last_err = err
+            executor.shutdown(wait=False, cancel_futures=True)
+            if _is_retryable_ak_error(err) and attempt < retries:
+                time.sleep(retry_delay_sec)
+                continue
+            break
+
+    if isinstance(last_err, FutureTimeoutError):
+        raise RuntimeError(
+            f"{operation}失败：请求超时（{timeout_sec}s），已重试 {retries} 次。"
+        ) from last_err
+
+    if last_err is not None and _is_retryable_ak_error(last_err):
+        raise RuntimeError(
+            f"{operation}失败：网络抖动或服务暂不可用，已重试 {retries} 次。原始错误: {last_err}"
+        ) from last_err
+
+    raise RuntimeError(
+        f"{operation}失败：参数或接口响应异常（不可重试）。原始错误: {last_err}"
+    ) from last_err
+
+
 def fetch_kline_data(code: str, start_date: str, end_date: str):
     """通过 AKShare 获取日 K 线数据。
 
@@ -82,15 +167,21 @@ def fetch_kline_data(code: str, start_date: str, end_date: str):
         error_exit("未安装 akshare，请运行: pip install -r requirements.txt")
 
     try:
-        df = ak.stock_zh_a_hist(
-            symbol=code,
-            period="daily",
-            start_date=start_date,
-            end_date=end_date,
-            adjust="qfq",  # 前复权
+        df = run_akshare_with_retry(
+            lambda: ak.stock_zh_a_hist(
+                symbol=code,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq",  # 前复权
+            ),
+            operation=f"获取股票 {code} 日K数据",
+            retries=3,
+            timeout_sec=15,
+            retry_delay_sec=1.0,
         )
-    except Exception as e:
-        error_exit(f"获取股票 {code} 数据失败: {e}")
+    except RuntimeError as e:
+        error_exit(str(e))
 
     if df is None or df.empty:
         error_exit(f"股票 {code} 在 {start_date}~{end_date} 期间无数据。")
@@ -113,3 +204,19 @@ def fetch_kline_data(code: str, start_date: str, end_date: str):
     df = df[available]
 
     return df
+
+
+def fetch_fund_flow_data(code: str, market: str):
+    """通过 AKShare 获取个股资金流向，带超时与重试。"""
+    try:
+        import akshare as ak
+    except ImportError:
+        error_exit("未安装 akshare，请运行: pip install -r requirements.txt")
+
+    return run_akshare_with_retry(
+        lambda: ak.stock_individual_fund_flow(stock=code, market=market),
+        operation=f"获取股票 {market}{code} 资金流",
+        retries=2,
+        timeout_sec=12,
+        retry_delay_sec=1.0,
+    )

@@ -28,7 +28,10 @@ python scripts/analyze.py 600519 30
 │   ├── utils.py           # 共享工具（代码解析、数据获取）
 │   ├── fetch_kline.py     # 获取 K 线数据 → CSV
 │   ├── plot_chart.py      # 生成 K 线图 → PNG
-│   └── analyze.py         # 输出技术指标分析文本
+│   ├── analyze.py         # 输出技术指标分析文本
+│   └── masters_indicators.py  # 大师策略三步过滤分析
+├── tests/
+│   └── test_masters_indicators.py # masters_indicators 单元测试
 ├── references/
 │   ├── akshare_api.md     # AKShare 接口参考
 │   └── stock_codes.md     # 股票代码规则
@@ -67,6 +70,15 @@ python scripts/analyze.py <股票代码> [周期天数]
 - 默认分析最近 30 个交易日
 - 输出 MACD、RSI、BOLL、KDJ 等指标及解读
 
+### masters_indicators.py — 大师策略过滤模型
+
+```bash
+python scripts/masters_indicators.py <股票代码> [周期天数]
+```
+
+- 默认分析 250 个交易日
+- 输出三步过滤结果与 JSON_DATA 结构化结论
+
 ## 技术栈
 
 - **数据源**：[AKShare](https://github.com/akfamily/akshare)（免费，无需注册）
@@ -79,3 +91,16 @@ python scripts/analyze.py <股票代码> [周期天数]
 - 输出为 PNG 静态图片，适合 OpenClaw 直接展示
 - AKShare 有请求频率限制，避免短时间大量调用
 - 分析结果仅供参考，不构成投资建议
+
+## 测试
+
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+## 版本历史
+
+| 日期 | 版本 | 变更 |
+|------|------|------|
+| 2026-03-11 | v1.3.1 | 修复 `masters_indicators.py` 首次拉取 CSV 路径解析错误（不再将 stdout 当文件路径），并补充对应单元测试 |
+| 2026-03-11 | v1.3.0 | 完成 P1 修复：`fetch_kline.py` 日期校验、`analyze.py` 资金流列白名单、AKShare 超时重试与错误分类、`masters_indicators.py` 边界单元测试 |
