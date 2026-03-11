@@ -1,7 +1,7 @@
 ---
 name: a-share-analyzer
 description: A 股行情获取、技术指标分析与 K 线图可视化
-version: 1.0.0
+version: 1.1.0
 tools:
   - bash
 dependencies:
@@ -84,6 +84,19 @@ python scripts/analyze.py <股票代码> [周期天数]
 
 - `references/akshare_api.md`：AKShare 常用接口说明
 - `references/stock_codes.md`：A 股代码规则
+- `docs/data_source_diff_template.md`：跨数据源差异解释模板（回归偏差说明）
+
+## 回归测试（建议在批量修改后执行）
+
+```bash
+# 执行 P0/P1 用例
+bash scripts/run_regression.sh
+
+# 追加 P2 用例
+bash scripts/run_regression.sh --include-p2
+```
+
+测试结果会自动写入 `output/test_reports/<日期时间>/summary.md` 与 `logs/`。
 
 ## 注意事项
 

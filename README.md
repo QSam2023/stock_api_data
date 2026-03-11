@@ -1,6 +1,6 @@
 # A 股数据分析 OpenClaw Skill
 
-通过自然语言指令完成 A 股行情获取、技术指标计算和 K 线图可视化的 OpenClaw Skill。
+通过自然语言指令完成 A 股行情获取、技术指标计算、K 线图可视化与回归测试。
 
 当前仓库提供一套可直接被 Agent 调用的 Python CLI：数据拉取、图表绘制、指标解读，以及基于大师策略的三步过滤模型。
 
@@ -27,6 +27,9 @@ python scripts/record_web_snapshot.py TC-ANL-003 Eastmoney \
   "https://quote.eastmoney.com/sh601869.html" \
   --api-values '{"main_flow": 175185488}' \
   --web-values '{"main_flow": 176000000}'
+
+# 执行 P0/P1 一键回归
+bash scripts/run_regression.sh
 ```
 
 ## 目录结构
@@ -41,7 +44,8 @@ python scripts/record_web_snapshot.py TC-ANL-003 Eastmoney \
 │   ├── plot_chart.py          # 生成 K 线图 → PNG
 │   ├── analyze.py             # 输出技术指标分析文本
 │   ├── masters_indicators.py  # 大师策略三步过滤分析
-│   └── record_web_snapshot.py # 记录网页对比基线快照
+│   ├── record_web_snapshot.py # 记录网页对比基线快照
+│   └── run_regression.sh      # P0/P1 一键回归并归档测试报告
 ├── tests/
 │   └── test_masters_indicators.py # masters_indicators 单元测试
 ├── docs/
@@ -49,12 +53,13 @@ python scripts/record_web_snapshot.py TC-ANL-003 Eastmoney \
 │   ├── reference_strategy.md      # 投机大师方法论参考
 │   ├── skill_interface_testset.md # 接口 vs 网页搜索对比测试设计
 │   ├── skill_interface_testcases.csv # 可执行测试用例清单
-│   └── test_and_fix_todolist.md   # 缺陷测试与修复待办
+│   ├── test_and_fix_todolist.md   # 缺陷测试与修复待办
+│   └── data_source_diff_template.md # 跨数据源差异解释模板
 ├── references/
 │   ├── akshare_api.md     # AKShare 接口参考
 │   └── stock_codes.md     # 股票代码规则
 ├── data/                  # 运行时生成的 CSV（已 gitignore）
-└── output/                # 运行时生成的图表（已 gitignore）
+└── output/                # 运行时生成的图表与测试报告（已 gitignore）
 ```
 
 ## 脚本用法
@@ -112,6 +117,27 @@ python scripts/record_web_snapshot.py <CASE_ID> <SOURCE> <URL> \
 - 输出到 `output/test_reports/<YYYYMMDD>/web_baseline_snapshots.jsonl`
 - 用于保留接口与网页对比的可追溯证据
 
+### run_regression.sh — 统一回归入口
+
+```bash
+# 执行全部 P0/P1 用例
+bash scripts/run_regression.sh
+
+# 在 P0/P1 基础上附加执行 P2 用例
+bash scripts/run_regression.sh --include-p2
+
+# 只执行单个用例
+bash scripts/run_regression.sh --only TC-PLOT-002
+```
+
+- 产物归档目录：`output/test_reports/<YYYYMMDD_HHMMSS>/`
+- 产物内容：`summary.md` 与 `logs/<CASE_ID>.log`
+
+## 跨数据源差异解释
+
+- 模板文件：`docs/data_source_diff_template.md`
+- 适用场景：复权口径差异、成交量单位差异、停牌与交易日错位、实时/收盘时间窗差异
+
 ## 技术栈
 
 - **数据源**：[AKShare](https://github.com/akfamily/akshare)（免费，无需注册）
@@ -128,13 +154,21 @@ python scripts/record_web_snapshot.py <CASE_ID> <SOURCE> <URL> \
 ## 测试
 
 ```bash
+# 单元测试
 python -m unittest discover -s tests -p "test_*.py"
+
+# 回归测试（默认 P0/P1）
+bash scripts/run_regression.sh
+
+# 回归测试（含 P2）
+bash scripts/run_regression.sh --include-p2
 ```
 
 ## 版本历史
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-03-11 | v1.4.0 | 完成 P2 迭代：新增 `scripts/run_regression.sh` 统一回归入口，测试结果归档到 `output/test_reports/`，并新增 `docs/data_source_diff_template.md` 跨数据源差异解释模板 |
 | 2026-03-11 | v1.3.1 | 修复 `masters_indicators.py` 首次拉取 CSV 路径解析错误（不再将 stdout 当文件路径），并补充对应单元测试 |
 | 2026-03-11 | v1.3.0 | 完成 P1 修复：`fetch_kline.py` 日期校验、`analyze.py` 资金流列白名单、AKShare 超时重试与错误分类、`masters_indicators.py` 边界单元测试 |
 | 2026-03-11 | v1.2.1 | 修复 P0 问题：`analyze.py` 近5日资金流取值、`masters_indicators.py` 首次拉取 CSV 路径解析；新增网页对比快照脚本 |
