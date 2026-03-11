@@ -1,0 +1,15 @@
+case_id,priority,interface,scenario,input_command,web_query_template,web_source,compare_fields,pass_rule,status,notes
+TC-FETCH-001,P0,fetch_kline,上证股票行情对齐,"python scripts/fetch_kline.py 600519 20260201 20260311","600519.SS historical close volume","Yahoo Finance History","date,close,volume","close<=0.02且volume偏差<=2%",TODO,核心基线
+TC-FETCH-002,P0,fetch_kline,深证股票行情对齐,"python scripts/fetch_kline.py 000001 20260201 20260311","000001.SZ historical close volume","Yahoo Finance History","date,close,volume","close<=0.02且volume偏差<=2%",TODO,跨市场校验
+TC-FETCH-003,P1,fetch_kline,前缀代码兼容,"python scripts/fetch_kline.py sh600519 20260201 20260311","600519.SS historical","Yahoo Finance History","row_count,last_close","行数一致且last_close误差<=0.02",TODO,兼容性
+TC-FETCH-004,P1,fetch_kline,无效代码异常,"python scripts/fetch_kline.py abcdef","N/A","N/A","exit_code,error_message","退出码非0且报错清晰",TODO,鲁棒性
+TC-ANL-001,P0,analyze,最新收盘价对齐,"python scripts/analyze.py 601869 30","601869.SS quote close","Yahoo Finance Quote/History","latest_close","误差<=0.02",TODO,关键信息
+TC-ANL-002,P0,analyze,30日涨跌幅对齐,"python scripts/analyze.py 601869 30","601869.SS history range","Yahoo Finance History","30d_pct_change","误差<=0.10pct",TODO,口径需同交易日
+TC-ANL-003,P0,analyze,主力资金最新1日对齐,"python scripts/analyze.py 601869 30","601869 主力净流入 东方财富","Eastmoney Fund Flow","main_flow_latest_day","误差<=500万",TODO,资金流核心
+TC-ANL-004,P0,analyze,主力资金近5日对齐,"python scripts/analyze.py 601869 30","601869 近5日 主力净流入 东方财富","Eastmoney Fund Flow","main_flow_5d_sum","误差<=500万",TODO,当前已知高风险
+TC-ANL-005,P1,analyze,接口失败降级,"python scripts/analyze.py 601869 30","N/A","N/A","fund_flow_fallback_text","资金流接口失败时有提示且不中断主流程",TODO,可用性
+TC-MST-001,P0,masters_indicators,数据拉取路径正确,"python scripts/masters_indicators.py 600519 250","600519.SS history","Yahoo Finance History","csv_path_valid,exit_code","首跑可成功并退出码0",TODO,当前已知高风险
+TC-MST-002,P1,masters_indicators,Step1均线趋势一致,"python scripts/masters_indicators.py 600519 250","600519 MA150 trend","Yahoo/TradingView","step1_status","重算结果与输出一致",TODO,规则正确性
+TC-MST-003,P1,masters_indicators,Step3新高信号一致,"python scripts/masters_indicators.py 601869 250","601869 52-week high","Yahoo Finance Quote","step3_new_high_hint","新高判定与网页高点趋势一致",TODO,信号一致性
+TC-PLOT-001,P1,plot_chart,图表产物生成,"python scripts/plot_chart.py data/600519_20260201_20260311.csv --indicators ma,macd,boll","600519.SS history","Yahoo Finance History","output_file_exists,last_date","PNG存在且最后K线日期一致",TODO,可视化可用性
+TC-PLOT-002,P2,plot_chart,非法指标参数,"python scripts/plot_chart.py data/600519_20260201_20260311.csv --indicators ma,foo","N/A","N/A","exit_code,error_message","退出码非0且提示无效指标",TODO,参数校验

@@ -2,6 +2,8 @@
 
 通过自然语言指令完成 A 股行情获取、技术指标计算和 K 线图可视化的 OpenClaw Skill。
 
+当前仓库提供一套可直接被 Agent 调用的 Python CLI：数据拉取、图表绘制、指标解读，以及基于大师策略的三步过滤模型。
+
 ## 快速开始
 
 ```bash
@@ -17,7 +19,7 @@ python scripts/plot_chart.py data/600519_*.csv --indicators ma,macd,boll
 # 输出技术指标分析文本
 python scripts/analyze.py 600519 30
 
-# 执行大师策略三步过滤
+# 执行大师策略三步过滤（温斯顿/威科夫/达瓦斯+利弗莫尔）
 python scripts/masters_indicators.py 600519 250
 
 # 记录“接口 vs 网页”对比快照
@@ -40,6 +42,12 @@ python scripts/record_web_snapshot.py TC-ANL-003 Eastmoney \
 │   ├── analyze.py         # 输出技术指标分析文本
 │   ├── masters_indicators.py # 大师策略三步过滤分析
 │   └── record_web_snapshot.py # 记录网页对比基线快照
+├── docs/
+│   ├── Stock_API_PRD.md   # 产品需求文档
+│   ├── reference_strategy.md # 投机大师方法论参考
+│   ├── skill_interface_testset.md # 接口 vs 网页搜索对比测试设计
+│   ├── skill_interface_testcases.csv # 可执行测试用例清单
+│   └── test_and_fix_todolist.md # 缺陷测试与修复待办
 ├── references/
 │   ├── akshare_api.md     # AKShare 接口参考
 │   └── stock_codes.md     # 股票代码规则
@@ -85,7 +93,11 @@ python scripts/masters_indicators.py <股票代码> [周期天数]
 ```
 
 - 默认分析 250 个交易日
-- 输出三步过滤结论和 `JSON_DATA`
+- 三步过滤逻辑：
+  - 温斯顿 + 欧奈尔：均线趋势过滤
+  - 威科夫：量价健康体检
+  - 达瓦斯 + 利弗莫尔：箱体/突破信号
+- 输出终端文本结论，并附带 `JSON_DATA` 结果供自动化消费
 
 ### record_web_snapshot.py — 网页基线快照
 
@@ -115,5 +127,7 @@ python scripts/record_web_snapshot.py <CASE_ID> <SOURCE> <URL> \
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
-| 2026-03-11 | v1.1.1 | 修复 P0 问题：`analyze.py` 近5日资金流取值、`masters_indicators.py` 首次拉取 CSV 路径解析；新增网页对比快照脚本 |
+| 2026-03-11 | v1.2.1 | 修复 P0 问题：`analyze.py` 近5日资金流取值、`masters_indicators.py` 首次拉取 CSV 路径解析；新增网页对比快照脚本 |
+| 2026-03-11 | v1.2.0 | 新增 Skill 接口测试集设计、接口对比用例清单与 `test and fix bugs` TodoList |
+| 2026-03-11 | v1.1.0 | 初始化 `AGENTS.md`；README 补充项目总结、`masters_indicators.py` 说明与维护信息 |
 | 2026-03-10 | v1.0.0 | 初始版本：支持 K 线获取、图表生成、技术指标分析 |
