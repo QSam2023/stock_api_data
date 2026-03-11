@@ -167,9 +167,30 @@ def main():
     ensure_dirs()
     output_path = OUTPUT_DIR / f"{code_label}_chart.png"
 
+    # 选择支持中文的字体，按平台优先级回退
+    import matplotlib.font_manager as fm
+
+    cjk_candidates = [
+        "PingFang HK",      # macOS
+        "PingFang SC",       # macOS
+        "Heiti TC",          # macOS
+        "STHeiti",           # macOS
+        "Microsoft YaHei",   # Windows
+        "SimHei",            # Windows
+        "Noto Sans CJK SC",  # Linux
+        "WenQuanYi Micro Hei",  # Linux
+    ]
+    available = {f.name for f in fm.fontManager.ttflist}
+    cjk_font = next((f for f in cjk_candidates if f in available), None)
+
+    rc_params = {"font.size": 9}
+    if cjk_font:
+        rc_params["font.family"] = cjk_font
+        rc_params["axes.unicode_minus"] = False  # 负号显示修复
+
     style = mpf.make_mpf_style(
         base_mpf_style="charles",
-        rc={"font.size": 9},
+        rc=rc_params,
     )
 
     kwargs = {
